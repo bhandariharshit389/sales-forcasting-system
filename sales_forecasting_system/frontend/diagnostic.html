@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Diagnostic</title>
+<style>
+body { font-family: monospace; padding: 20px; background: #1e293b; color: #e2e8f0; }
+h1 { color: #38bdf8; }
+.status { padding: 10px; margin: 10px 0; border-radius: 6px; font-weight: bold; }
+.ok { background: #166534; color: #bbf7d0; }
+.fail { background: #991b1b; color: #fecaca; }
+pre { background: #0f172a; padding: 15px; border-radius: 6px; max-height: 400px; overflow: auto; }
+.url { color: #fbbf24; }
+</style>
+</head>
+<body>
+<h1>🔍 API Diagnostic</h1>
+<div id="results"></div>
+<pre id="raw"></pre>
+
+<script>
+const log = (msg, cls = '') => {
+    document.getElementById('results').innerHTML += 
+        `<div class="status ${cls}">${msg}</div>`;
+};
+
+async function test() {
+    // Test 1: current page URL
+    log(`📄 Page URL: <span class="url">${window.location.href}</span>`);
+    log(`🌐 Protocol: <span class="url">${window.location.protocol}</span>`);
+
+    if (window.location.protocol === 'file:') {
+        log('❌ You opened this file directly from disk!', 'fail');
+        log('   Please open: http://localhost:5000/diagnostic.html', 'fail');
+        return;
+    }
+
+    // Test 2: health endpoint
+    try {
+        const r = await fetch('/api/health');
+        const d = await r.json();
+        log(`✅ /api/health → OK (${r.status})`, 'ok');
+        document.getElementById('raw').textContent = JSON.stringify(d, null, 2);
+    } catch (e) {
+        log(`❌ /api/health → FAILED: ${e.message}`, 'fail');
+        return;
+    }
+
+    // Test 3: dashboard endpoint
+    try {
+        const r = await fetch('/api/dashboard-data');
+        const text = await r.text();
+        log(`📦 /api/dashboard-data → ${r.status}`, 'ok');
+        log(`   Response length: ${text.length} chars`);
+        try {
+            const d = JSON.parse(text);
+            log(`✅ Valid JSON received`, 'ok');
+            log(`   Keys: ${Object.keys(d).join(', ')}`);
+            log(`   Records: ${d.analytics?.total_records || '?'}`);
+            log(`   History points: ${d.data?.length || 0}`);
+            log(`   Forecast points: ${d.forecast?.forecast?.length || 0}`);
+            document.getElementById('raw').textContent = text.slice(0, 2000);
+        } catch (e) {
+            log(`❌ Not valid JSON! First 200 chars:`, 'fail');
+            document.getElementById('raw').textContent = text.slice(0, 500);
+        }
+    } catch (e) {
+        log(`❌ /api/dashboard-data → FAILED: ${e.message}`, 'fail');
+    }
+}
+test();
+</script>
+</body>
+</html>

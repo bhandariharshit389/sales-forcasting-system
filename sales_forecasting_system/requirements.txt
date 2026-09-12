@@ -1,0 +1,13 @@
+Flask
+flask-cors
+pandas
+numpy
+scikit-learn
+xgboost
+statsmodels
+prophet
+textblob
+matplotlib
+seaborn
+joblib
+plotly

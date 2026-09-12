@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sales Intelligence — Live</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2300ff88'/><stop offset='1' stop-color='%2300d977'/></linearGradient></defs><rect width='64' height='64' rx='14' fill='%230a0a0a'/><path d='M14 44 L26 30 L36 38 L50 18' stroke='url(%23g)' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='50' cy='18' r='5' fill='%2300ff88'/><circle cx='14' cy='44' r='4' fill='%2300ff88'/><circle cx='26' cy='30' r='4' fill='%2300ff88'/><circle cx='36' cy='38' r='4' fill='%2300ff88'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2300ff88'/><stop offset='1' stop-color='%2300d977'/></linearGradient></defs><rect width='64' height='64' rx='14' fill='%230a0a0a'/><path d='M14 44 L26 30 L36 38 L50 18' stroke='url(%23g)' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='50' cy='18' r='5' fill='%2300ff88'/></svg>">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{
+  --panel:rgba(17,17,17,0.72);
+  --border:rgba(31,31,31,0.9);
+  --border-bright:rgba(42,42,42,0.9);
+  --text:#f5f5f5;
+  --text-dim:#8a8a8a;
+  --text-mute:#5a5a5a;
+  --green:#00ff88;
+  --green-2:#00d977;
+  --green-dim:#0a3d26;
+  --green-glow:rgba(0,255,136,0.15);
+  --red:#ff4d6d;
+  --amber:#f5a623;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:#0a0a0a;color:var(--text);
+  font-family:'Inter','Segoe UI',-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;min-height:100vh}
+body{padding:24px;position:relative}
+
+#kinetic-grid-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+
+.wrap{max-width:1480px;margin:0 auto;position:relative;z-index:1}
+
+.glass{background:var(--panel);backdrop-filter:blur(14px) saturate(140%);
+  -webkit-backdrop-filter:blur(14px) saturate(140%);border:1px solid var(--border);
+  box-shadow:0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03)}
+
+/* Header */
+.head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;
+  padding:20px 24px;border-radius:16px;margin-bottom:16px}
+.head-left h1{font-size:22px;font-weight:700;letter-spacing:-0.02em;display:flex;align-items:center;gap:12px}
+.head-left .logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--green),var(--green-2));
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  box-shadow:0 0 24px var(--green-glow)}
+.head-left .sub{color:var(--text-dim);font-size:12.5px;margin-top:6px;letter-spacing:0.02em}
+.head-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.live-badge{display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(10,61,38,0.7);
+  border:1px solid rgba(0,255,136,0.35);border-radius:24px;font-size:12px;font-weight:600;color:var(--green);
+  letter-spacing:0.05em;text-transform:uppercase}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);
+  animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.85)}}
+
+.btn{padding:9px 16px;border:1px solid var(--border-bright);background:rgba(22,22,22,0.7);color:var(--text);
+  border-radius:8px;font-weight:500;font-size:13px;cursor:pointer;transition:all 0.2s;
+  font-family:inherit;backdrop-filter:blur(8px);display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:rgba(31,31,31,0.9);border-color:var(--green);color:var(--green);transform:translateY(-1px)}
+.btn-green{background:var(--green);color:#000;border-color:var(--green);font-weight:600}
+.btn-green:hover{background:var(--green-2);color:#000;border-color:var(--green-2)}
+.btn-danger:hover{border-color:var(--red);color:var(--red)}
+
+/* Dataset banner */
+.dataset-banner{display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:12px;padding:12px 20px;border-radius:12px;margin-bottom:20px;
+  font-size:13px}
+.dataset-info{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.dataset-info .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;
+  background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.25);
+  border-radius:20px;font-size:11.5px;font-weight:600;color:var(--green);
+  letter-spacing:0.04em}
+.dataset-info .chip.gray{background:rgba(255,255,255,0.04);border-color:var(--border-bright);color:var(--text-dim)}
+.dataset-info .name{font-weight:600;color:var(--text)}
+.dataset-info .meta{color:var(--text-dim);font-size:12px}
+
+/* Ticker */
+.ticker{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;
+  border-radius:12px;overflow:hidden;margin-bottom:20px;
+  background:rgba(31,31,31,0.5);border:1px solid var(--border)}
+.tick{padding:14px 18px;background:var(--panel);display:flex;flex-direction:column;gap:4px;transition:background 0.3s}
+.tick:hover{background:rgba(22,22,22,0.85)}
+.tick .k{font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-mute);font-weight:600}
+.tick .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
+.tick .v.live{color:var(--green);text-shadow:0 0 12px var(--green-glow)}
+.tick.flash{background:linear-gradient(90deg,var(--panel) 0%,rgba(0,255,136,0.10) 50%,var(--panel) 100%)}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:20px}
+.stat{position:relative;border-radius:14px;padding:22px;overflow:hidden;transition:all 0.3s}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--green),transparent);opacity:0;transition:opacity 0.3s}
+.stat:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,0,0,0.7)}
+.stat:hover::before{opacity:1}
+.stat .lbl{font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-mute);
+  font-weight:600;display:flex;align-items:center;gap:6px}
+.stat .lbl .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+.stat .num{font-size:28px;font-weight:700;margin-top:10px;letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
+.stat .num.green{color:var(--green);text-shadow:0 0 20px var(--green-glow)}
+.stat .delta{font-size:12px;margin-top:8px;display:flex;align-items:center;gap:4px;color:var(--text-dim)}
+.stat .delta.up{color:var(--green)}
+.stat .delta.down{color:var(--red)}
+
+/* Charts */
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(480px,1fr));gap:16px;margin-bottom:20px}
+.panel{border-radius:14px;padding:20px}
+.panel h3{font-size:14px;font-weight:600;letter-spacing:0.02em;margin-bottom:16px;
+  display:flex;align-items:center;justify-content:space-between;color:var(--text)}
+.panel h3 span.tag{font-size:10px;padding:3px 8px;background:var(--green-dim);color:var(--green);
+  border-radius:10px;font-weight:600;letter-spacing:0.08em;border:1px solid rgba(0,255,136,0.3)}
+.chart-box{height:300px;position:relative}
+
+/* Bottom */
+.bottom{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px}
+.mrow{display:flex;justify-content:space-between;align-items:center;padding:12px 0;
+  border-bottom:1px solid var(--border)}
+.mrow:last-child{border-bottom:none}
+.mrow .k{color:var(--text-dim);font-size:13px}
+.mrow .val{font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}
+
+.insight{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--border)}
+.insight:last-child{border-bottom:none}
+.insight .ico{width:32px;height:32px;flex-shrink:0;border-radius:8px;background:var(--green-dim);
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+  border:1px solid rgba(0,255,136,0.25);color:var(--green)}
+.insight .ttl{font-size:13px;font-weight:600;color:var(--text)}
+.insight .dsc{font-size:12.5px;color:var(--text-dim);margin-top:4px;line-height:1.4}
+.impact{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;
+  letter-spacing:0.06em;text-transform:uppercase;margin-top:6px}
+.impact.High{background:rgba(0,255,136,0.15);color:var(--green);border:1px solid rgba(0,255,136,0.35)}
+.impact.Medium{background:rgba(255,255,255,0.05);color:#ccc;border:1px solid var(--border-bright)}
+.impact.Low{background:rgba(255,255,255,0.03);color:var(--text-mute);border:1px solid var(--border)}
+
+/* Footer */
+.foot{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;margin-top:20px;
+  color:var(--text-mute);font-size:12px;border-radius:12px}
+.foot .live-status{display:flex;align-items:center;gap:8px;color:var(--green);font-weight:600}
+
+/* Modal */
+.modal-back{position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);
+  z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-back.open{display:flex}
+.modal{background:linear-gradient(145deg,#141414 0%,#0e0e0e 100%);
+  border:1px solid var(--border-bright);border-radius:16px;
+  max-width:640px;width:100%;max-height:90vh;overflow:auto;
+  box-shadow:0 20px 80px rgba(0,0,0,0.8)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;
+  padding:20px 24px;border-bottom:1px solid var(--border)}
+.modal-head h2{font-size:17px;font-weight:600;display:flex;align-items:center;gap:10px}
+.modal-head .close{background:transparent;border:none;color:var(--text-dim);font-size:22px;
+  cursor:pointer;line-height:1;padding:4px 8px;border-radius:6px;transition:0.2s}
+.modal-head .close:hover{background:rgba(255,255,255,0.06);color:var(--text)}
+.modal-body{padding:24px}
+
+.dropzone{border:2px dashed var(--border-bright);border-radius:12px;padding:40px 20px;
+  text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(255,255,255,0.01)}
+.dropzone:hover{border-color:var(--green);background:rgba(0,255,136,0.03)}
+.dropzone.drag{border-color:var(--green);background:rgba(0,255,136,0.08);transform:scale(1.01)}
+.dropzone .icon{font-size:44px;margin-bottom:12px;opacity:0.85}
+.dropzone .main{font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px}
+.dropzone .sub{font-size:12.5px;color:var(--text-dim)}
+
+.file-info{margin-top:18px;padding:14px 16px;background:rgba(255,255,255,0.03);
+  border:1px solid var(--border);border-radius:10px;display:flex;justify-content:space-between;
+  align-items:center;gap:12px;font-size:13px}
+.file-info .fname{font-weight:600;color:var(--text);word-break:break-all}
+.file-info .fsize{color:var(--text-dim);font-size:12px;white-space:nowrap}
+
+.upload-status{margin-top:18px;padding:12px 16px;border-radius:10px;font-size:13px;display:none}
+.upload-status.show{display:block}
+.upload-status.ok{background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);color:var(--green)}
+.upload-status.err{background:rgba(255,77,109,0.08);border:1px solid rgba(255,77,109,0.3);color:var(--red)}
+.upload-status.info{background:rgba(255,255,255,0.03);border:1px solid var(--border);color:var(--text-dim)}
+
+.hint-box{margin-top:18px;padding:14px 16px;background:rgba(255,255,255,0.02);
+  border:1px solid var(--border);border-radius:10px;font-size:12.5px;color:var(--text-dim);line-height:1.6}
+.hint-box strong{color:var(--text);font-weight:600}
+.hint-box code{background:rgba(0,255,136,0.1);color:var(--green);
+  padding:1px 6px;border-radius:4px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
+
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;
+  border-top:1px solid var(--border)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:#0a0a0a}
+::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:var(--green-dim)}
+
+@media (max-width:768px){
+  .charts{grid-template-columns:1fr}
+  .head{flex-direction:column;align-items:flex-start}
+  .bottom{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<canvas id="kinetic-grid-canvas"></canvas>
+
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="head glass">
+    <div class="head-left">
+      <h1><span class="logo">◈</span> Sales Intelligence</h1>
+      <div class="sub">Live sales monitoring · real-time analytics · AI forecasting</div>
+    </div>
+    <div class="head-right">
+      <div class="live-badge"><span class="live-dot"></span> Live Stream</div>
+      <button class="btn btn-green" onclick="openUpload()">⬆ Upload Data</button>
+      <button class="btn" onclick="loadAll()">Refresh</button>
+      <button class="btn" onclick="togglePause()" id="pauseBtn">Pause</button>
+    </div>
+  </div>
+
+  <!-- Dataset banner -->
+  <div class="dataset-banner glass" id="datasetBanner">
+    <div class="dataset-info">
+      <span class="chip" id="dsChip">● DEFAULT</span>
+      <span class="name" id="dsName">sales_2025.csv</span>
+      <span class="meta" id="dsMeta">Loading…</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-danger" onclick="resetData()" id="resetBtn" style="display:none">
+        Reset to Default
+      </button>
+    </div>
+  </div>
+
+  <!-- Live ticker -->
+  <div class="ticker glass">
+    <div class="tick" id="t-users"><div class="k">Active Users</div><div class="v live" id="v-users">—</div></div>
+    <div class="tick" id="t-orders"><div class="k">Orders / min</div><div class="v" id="v-orders">—</div></div>
+    <div class="tick" id="t-conv"><div class="k">Conversion</div><div class="v" id="v-conv">—</div></div>
+    <div class="tick" id="t-resp"><div class="k">API Response</div><div class="v" id="v-resp">—</div></div>
+    <div class="tick" id="t-cpu"><div class="k">CPU</div><div class="v" id="v-cpu">—</div></div>
+    <div class="tick" id="t-mem"><div class="k">Memory</div><div class="v" id="v-mem">—</div></div>
+    <div class="tick" id="t-tick"><div class="k">Live Tick</div><div class="v live" id="v-tick">—</div></div>
+    <div class="tick" id="t-time"><div class="k">Last Update</div><div class="v" id="v-time">—</div></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat glass">
+      <div class="lbl"><span class="dot"></span>Total Sales</div>
+      <div class="num green" id="s1">—</div>
+      <div class="delta up" id="s1d">—</div>
+    </div>
+    <div class="stat glass">
+      <div class="lbl"><span class="dot"></span>Average Order</div>
+      <div class="num" id="s2">—</div>
+      <div class="delta" id="s2d">per transaction</div>
+    </div>
+    <div class="stat glass">
+      <div class="lbl"><span class="dot"></span>Total Records</div>
+      <div class="num" id="s3">—</div>
+      <div class="delta" id="s3d">orders processed</div>
+    </div>
+    <div class="stat glass">
+      <div class="lbl"><span class="dot"></span>Trend</div>
+      <div class="num" id="s4">—</div>
+      <div class="delta" id="s4d">vs previous period</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts">
+    <div class="panel glass">
+      <h3>Daily Sales History <span class="tag">LIVE</span></h3>
+      <div class="chart-box"><canvas id="hist"></canvas></div>
+    </div>
+    <div class="panel glass">
+      <h3>30-Day Forecast <span class="tag">REGRESSION</span></h3>
+      <div class="chart-box"><canvas id="fc"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Bottom -->
+  <div class="bottom">
+    <div class="panel glass">
+      <h3>Key Metrics</h3>
+      <div id="metrics"></div>
+    </div>
+    <div class="panel glass">
+      <h3>Intelligence Insights</h3>
+      <div id="insights"></div>
+    </div>
+  </div>
+
+  <div class="foot glass">
+    <div>Sales Intelligence Platform · v1.0</div>
+    <div class="live-status"><span class="live-dot"></span><span id="foot-status">Streaming live data</span></div>
+  </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal-back" id="uploadModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>⬆ Upload Your Dataset</h2>
+      <button class="close" onclick="closeUpload()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="dropzone" id="dropzone">
+        <div class="icon">📁</div>
+        <div class="main">Drop your CSV here, or click to browse</div>
+        <div class="sub">Maximum file size: 20 MB · Maximum rows: 500,000</div>
+      </div>
+      <input type="file" id="fileInput" accept=".csv" style="display:none">
+
+      <div class="file-info" id="fileInfo" style="display:none">
+        <span class="fname" id="fileName">—</span>
+        <span class="fsize" id="fileSize">—</span>
+      </div>
+
+      <div class="upload-status" id="uploadStatus"></div>
+
+      <div class="hint-box">
+        <strong>Your CSV needs at least two columns:</strong><br>
+        • A <strong>date</strong> column (e.g. <code>Date</code>, <code>Order_Date</code>, <code>timestamp</code>)<br>
+        • A <strong>sales/value</strong> column (e.g. <code>Sales</code>, <code>Amount</code>, <code>Revenue</code>, <code>Price</code>)<br>
+        <br>
+        If your file has <code>Quantity</code> and <code>Unit_Price</code> instead, both will be multiplied automatically.<br>
+        Your data replaces the current dataset until you click <strong>Reset to Default</strong>.
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeUpload()">Cancel</button>
+      <button class="btn btn-green" id="uploadBtn" onclick="doUpload()" disabled>Upload &amp; Analyze</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/kinetic-grid.js"></script>
+<script>
+var hChart = null, fChart = null;
+var paused = false;
+var liveTimer = null;
+var liveData = [];
+var selectedFile = null;
+
+// ═══════════════════════════════════════════════════════════════════
+// Utilities
+// ═══════════════════════════════════════════════════════════════════
+function fmt(n) {
+  n = Number(n) || 0;
+  var a = Math.abs(n);
+  if (a >= 1e7) return (n/1e7).toFixed(2) + ' Cr';
+  if (a >= 1e5) return (n/1e5).toFixed(2) + ' L';
+  if (a >= 1e3) return (n/1e3).toFixed(1) + ' K';
+  return n.toFixed(0);
+}
+function flash(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('flash');
+  setTimeout(function(){ el.classList.remove('flash'); }, 600);
+}
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Dataset status
+// ═══════════════════════════════════════════════════════════════════
+async function loadDatasetStatus() {
+  try {
+    var r = await fetch('/api/data-status');
+    var d = await r.json();
+    var chip = document.getElementById('dsChip');
+    var name = document.getElementById('dsName');
+    var meta = document.getElementById('dsMeta');
+    var resetBtn = document.getElementById('resetBtn');
+
+    if (d.source === 'uploaded') {
+      chip.textContent = '● UPLOADED';
+      chip.style.background = 'rgba(0,255,136,0.15)';
+      chip.style.borderColor = 'rgba(0,255,136,0.4)';
+      chip.style.color = 'var(--green)';
+      resetBtn.style.display = 'inline-flex';
+    } else {
+      chip.textContent = '● DEFAULT';
+      chip.style.background = 'rgba(255,255,255,0.04)';
+      chip.style.borderColor = 'var(--border-bright)';
+      chip.style.color = 'var(--text-dim)';
+      resetBtn.style.display = 'none';
+    }
+
+    name.textContent = d.name || 'unknown';
+    var parts = [(d.rows || 0).toLocaleString() + ' rows'];
+    if (d.date_range) parts.push(d.date_range.start + ' → ' + d.date_range.end);
+    if (typeof d.total_sales === 'number') parts.push('Total: Rs ' + fmt(d.total_sales));
+    meta.textContent = parts.join(' · ');
+  } catch (e) {
+    console.error('Status load failed:', e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Main data loading
+// ═══════════════════════════════════════════════════════════════════
+async function loadAll() {
+  try {
+    var r = await fetch('/api/dashboard-data');
+    var d = await r.json();
+    if (d.error) {
+      console.error('API error:', d.error);
+      return;
+    }
+    var a = d.analytics || {};
+
+    document.getElementById('s1').textContent = 'Rs ' + fmt(a.total);
+    document.getElementById('s2').textContent = 'Rs ' + fmt(a.average);
+    document.getElementById('s3').textContent = (a.total_records || 0).toLocaleString();
+
+    var trend = a.trend_percentage || 0;
+    var s4 = document.getElementById('s4');
+    s4.textContent = (trend >= 0 ? '+' : '') + trend + '%';
+    s4.className = 'num ' + (trend >= 0 ? 'green' : '');
+
+    var s4d = document.getElementById('s4d');
+    s4d.textContent = (trend >= 0 ? '↑ growing' : '↓ declining') + ' vs prev period';
+    s4d.className = 'delta ' + (trend >= 0 ? 'up' : 'down');
+
+    document.getElementById('s1d').textContent = '↑ ' + (a.total_records || 0).toLocaleString() + ' records';
+
+    drawHist(d.data || []);
+    drawFc(d.forecast || {});
+
+    var rows = [
+      ['Total Sales', 'Rs ' + fmt(a.total)],
+      ['Average', 'Rs ' + fmt(a.average)],
+      ['Minimum', 'Rs ' + fmt(a.min)],
+      ['Maximum', 'Rs ' + fmt(a.max)],
+      ['Std Deviation', 'Rs ' + fmt(a.std_dev)],
+      ['Total Records', (a.total_records || 0).toLocaleString()]
+    ];
+    document.getElementById('metrics').innerHTML = rows.map(function(x){
+      return '<div class="mrow"><span class="k">' + x[0] + '</span><span class="val">' + x[1] + '</span></div>';
+    }).join('');
+
+    loadInsights();
+    loadDatasetStatus();
+  } catch (e) {
+    console.error('Load failed:', e);
+  }
+}
+
+async function loadInsights() {
+  try {
+    var r = await fetch('/api/insights');
+    var d = await r.json();
+    var list = d.insights || [];
+    var icons = {Performance:'◆', Trend:'◈', Growth:'▲', Forecast:'◇', 'Data Quality':'✓'};
+    document.getElementById('insights').innerHTML = list.map(function(i){
+      return '<div class="insight"><div class="ico">' + (icons[i.category] || '●') + '</div><div>' +
+        '<div class="ttl">' + escapeHtml(i.title) + '</div>' +
+        '<div class="dsc">' + escapeHtml(i.description) + '</div>' +
+        '<span class="impact ' + i.impact + '">' + i.impact + '</span></div></div>';
+    }).join('');
+  } catch (e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Live tick
+// ═══════════════════════════════════════════════════════════════════
+async function tick() {
+  if (paused) return;
+  try {
+    var r = await fetch('/api/live');
+    var d = await r.json();
+    setTick('users', d.active_users);
+    setTick('orders', d.orders_per_min);
+    setTick('conv', d.conversion_rate + '%');
+    setTick('resp', d.response_ms + 'ms');
+    setTick('cpu', d.cpu + '%');
+    setTick('mem', d.memory + '%');
+    setTick('tick', 'Rs ' + fmt(d.tick_value));
+    setTick('time', d.timestamp);
+
+    liveData.push({ t: d.timestamp, v: d.tick_value });
+    if (liveData.length > 40) liveData.shift();
+    updateLiveOverlay();
+
+    if (window.KineticGrid && Math.random() < 0.6) {
+      window.KineticGrid.addRipple(
+        Math.random() * window.innerWidth,
+        Math.random() * window.innerHeight
+      );
+    }
+    document.getElementById('foot-status').textContent = 'Streaming · last ' + d.timestamp;
+  } catch (e) {}
+}
+
+function setTick(id, value) {
+  var el = document.getElementById('v-' + id);
+  if (!el) return;
+  var old = el.textContent;
+  el.textContent = value;
+  if (old !== String(value)) flash('t-' + id);
+}
+
+function updateLiveOverlay() {
+  if (!hChart) return;
+  var values = liveData.map(function(p){ return p.v; });
+  if (hChart.data.datasets[1]) hChart.data.datasets[1].data = values;
+  hChart.update('none');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Charts
+// ═══════════════════════════════════════════════════════════════════
+function drawHist(rows) {
+  var ctx = document.getElementById('hist');
+  if (hChart) hChart.destroy();
+  var grad = ctx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+  grad.addColorStop(0, 'rgba(0,255,136,0.35)');
+  grad.addColorStop(1, 'rgba(0,255,136,0.0)');
+
+  hChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: rows.map(function(r){ return r.ds; }),
+      datasets: [
+        { label: 'Daily Sales', data: rows.map(function(r){ return r.y; }),
+          borderColor: '#00ff88', backgroundColor: grad,
+          borderWidth: 2, fill: true, tension: 0.35, pointRadius: 0,
+          pointHoverRadius: 5, pointHoverBackgroundColor: '#00ff88' },
+        { label: 'Live Stream', data: [],
+          borderColor: '#ffffff', backgroundColor: 'transparent',
+          borderWidth: 1.5, borderDash: [4, 3], fill: false, tension: 0.35, pointRadius: 0 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 400 },
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: true, position: 'top', align: 'end',
+          labels: { color: '#888', font: { size: 11 }, boxWidth: 10, boxHeight: 10, padding: 12 } },
+        tooltip: { backgroundColor: 'rgba(10,10,10,0.95)', borderColor: '#00ff88',
+          borderWidth: 1, titleColor: '#00ff88', bodyColor: '#eee', padding: 12,
+          callbacks: { label: function(c){ return 'Rs ' + Number(c.parsed.y).toLocaleString(); } } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(26,26,26,0.6)', drawBorder: false },
+             ticks: { color: '#666', font: { size: 10 }, maxTicksLimit: 10 } },
+        y: { grid: { color: 'rgba(26,26,26,0.6)', drawBorder: false },
+             ticks: { color: '#666', font: { size: 10 },
+                      callback: function(v){ return 'Rs ' + fmt(v); } } }
+      }
+    }
+  });
+}
+
+function drawFc(fc) {
+  var ctx = document.getElementById('fc');
+  if (fChart) fChart.destroy();
+  var grad = ctx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+  grad.addColorStop(0, 'rgba(0,255,136,0.25)');
+  grad.addColorStop(1, 'rgba(0,255,136,0.0)');
+
+  fChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: fc.dates || [], datasets: [{
+      label: 'Forecast', data: fc.forecast || [],
+      borderColor: '#00ff88', backgroundColor: grad,
+      borderWidth: 2, fill: true, tension: 0.4,
+      pointRadius: 2, pointBackgroundColor: '#00ff88',
+      pointBorderColor: '#0a0a0a', pointBorderWidth: 2, pointHoverRadius: 6
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 600 },
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: 'rgba(10,10,10,0.95)', borderColor: '#00ff88',
+          borderWidth: 1, titleColor: '#00ff88', bodyColor: '#eee', padding: 12,
+          callbacks: { label: function(c){ return 'Rs ' + Number(c.parsed.y).toLocaleString(); } } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(26,26,26,0.6)', drawBorder: false },
+             ticks: { color: '#666', font: { size: 10 }, maxTicksLimit: 10 } },
+        y: { grid: { color: 'rgba(26,26,26,0.6)', drawBorder: false },
+             ticks: { color: '#666', font: { size: 10 },
+                      callback: function(v){ return 'Rs ' + fmt(v); } } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Pause
+// ═══════════════════════════════════════════════════════════════════
+function togglePause() {
+  paused = !paused;
+  var btn = document.getElementById('pauseBtn');
+  btn.textContent = paused ? 'Resume' : 'Pause';
+  btn.className = 'btn' + (paused ? '' : ' btn-green');
+  document.getElementById('foot-status').textContent = paused ? 'Paused' : 'Streaming live data';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Upload modal
+// ═══════════════════════════════════════════════════════════════════
+function openUpload() {
+  document.getElementById('uploadModal').classList.add('open');
+  resetUploadUI();
+}
+function closeUpload() {
+  document.getElementById('uploadModal').classList.remove('open');
+}
+function resetUploadUI() {
+  selectedFile = null;
+  document.getElementById('fileInfo').style.display = 'none';
+  document.getElementById('uploadStatus').className = 'upload-status';
+  document.getElementById('uploadStatus').textContent = '';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('uploadBtn').disabled = true;
+}
+
+function showStatus(msg, type) {
+  var el = document.getElementById('uploadStatus');
+  el.className = 'upload-status show ' + type;
+  el.innerHTML = msg;
+}
+
+function humanSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1024/1024).toFixed(2) + ' MB';
+}
+
+function pickFile(file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    showStatus('❌ Only .csv files are supported', 'err');
+    return;
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    showStatus('❌ File is larger than 20 MB', 'err');
+    return;
+  }
+  selectedFile = file;
+  document.getElementById('fileInfo').style.display = 'flex';
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileSize').textContent = humanSize(file.size);
+  document.getElementById('uploadBtn').disabled = false;
+  showStatus('📄 File selected — click "Upload & Analyze"', 'info');
+}
+
+async function doUpload() {
+  if (!selectedFile) return;
+  var btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  showStatus('⏳ Uploading and analyzing your data…', 'info');
+
+  try {
+    var fd = new FormData();
+    fd.append('file', selectedFile);
+
+    var r = await fetch('/api/upload', { method: 'POST', body: fd });
+    var d = await r.json();
+
+    if (!r.ok || d.error) {
+      var msg = '❌ ' + (d.error || ('HTTP ' + r.status));
+      if (d.hint) msg += '<br><br><strong>Hint:</strong> ' + escapeHtml(d.hint);
+      if (d.columns_found) {
+        msg += '<br><br><strong>Columns found in your file:</strong> ' +
+               d.columns_found.map(function(c){ return '<code>' + escapeHtml(c) + '</code>'; }).join(', ');
+      }
+      showStatus(msg, 'err');
+      btn.disabled = false;
+      btn.textContent = 'Upload & Analyze';
+      return;
+    }
+
+    showStatus(
+      '✅ <strong>' + escapeHtml(d.filename) + '</strong> loaded successfully!<br>' +
+      '• Rows: <strong>' + d.rows.toLocaleString() + '</strong><br>' +
+      '• Date column: <code>' + escapeHtml(d.columns_detected.date) + '</code><br>' +
+      '• Sales column: <code>' + escapeHtml(d.columns_detected.sales) + '</code><br>' +
+      '• Date range: ' + d.date_range.start + ' → ' + d.date_range.end + '<br>' +
+      '• Total sales: Rs ' + fmt(d.total_sales),
+      'ok'
+    );
+
+    btn.textContent = 'Done';
+    setTimeout(function() {
+      closeUpload();
+      loadAll();
+    }, 1400);
+
+  } catch (e) {
+    showStatus('❌ Network error: ' + e.message, 'err');
+    btn.disabled = false;
+    btn.textContent = 'Upload & Analyze';
+  }
+}
+
+async function resetData() {
+  if (!confirm('Reset to the default dataset? This will discard your uploaded data.')) return;
+  try {
+    var r = await fetch('/api/reset-data', { method: 'POST' });
+    var d = await r.json();
+    if (d.success) {
+      loadAll();
+    } else {
+      alert('Reset failed: ' + (d.error || 'unknown error'));
+    }
+  } catch (e) {
+    alert('Reset failed: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function(){
+  var dropzone = document.getElementById('dropzone');
+  var fileInput = document.getElementById('fileInput');
+
+  dropzone.addEventListener('click', function(){ fileInput.click(); });
+  fileInput.addEventListener('change', function(e){
+    if (e.target.files && e.target.files[0]) pickFile(e.target.files[0]);
+  });
+
+  ['dragenter', 'dragover'].forEach(function(ev) {
+    dropzone.addEventListener(ev, function(e){
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.add('drag');
+    });
+  });
+  ['dragleave', 'drop'].forEach(function(ev) {
+    dropzone.addEventListener(ev, function(e){
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.remove('drag');
+    });
+  });
+  dropzone.addEventListener('drop', function(e){
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      pickFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  // Close modal on backdrop click or Escape
+  document.getElementById('uploadModal').addEventListener('click', function(e){
+    if (e.target.id === 'uploadModal') closeUpload();
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') closeUpload();
+  });
+
+  loadAll();
+  setTimeout(tick, 500);
+  liveTimer = setInterval(tick, 3000);
+  setInterval(loadAll, 60000);
+});
+</script>
+</body>
+</html>
